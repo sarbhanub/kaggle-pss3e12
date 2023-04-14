@@ -16,8 +16,8 @@ from lightgbm import LGBMClassifier
 # from catboost import CatBoostClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
-# ensembler
-from sklearn.ensemble import VotingClassifier
+# ensemblers
+from sklearn.ensemble import VotingClassifier, StackingClassifier
 # hyperparameter optimizers
 from functools import partial
 from hyperopt import hp, Trials, fmin, tpe
@@ -28,7 +28,7 @@ from sklearn.model_selection import StratifiedKFold
 # random and static options
 rs = 17 # random state
 scaler = StandardScaler() # data scaler
-splits = 10 # KFold splits for all our cross-validation tests
+splits = 12 # KFold splits for all our cross-validation tests
 max_evals = 25 # number of trials for hyperopt
 
 # defining models
@@ -178,16 +178,27 @@ for fold, (train_idx, valid_idx) in enumerate(skf.split(X, y)):
 
 print('Final ensemble score with CV:'+str(np.mean(ens_scores)))
 
-# using stacked meta classifier
-##############################
+# using stacked model for meta classifier
+meta_clf = LogisticRegression(random_state=rs)
+stck_clf = StackingClassifier(estimators=estimators, final_estimator=meta_clf)
 
+stck_scores = []
+for fold, (train_idx, valid_idx) in enumerate(skf.split(X, y)):
+    X_train, y_train = X[train_idx], y[train_idx]
+    X_valid, y_valid = X[valid_idx], y[valid_idx]
+    stck_clf.fit(X, y)
+    preds = stck_clf.predict(X_valid)
+    fold_roc_auc = roc_auc_score(y_valid, preds)
+    stck_scores.append(fold_roc_auc)
+
+print('Stacked Classifier score with CV:'+str(np.mean(stck_scores)))
 
 # training final model if happy with score
-ensembler.fit(X, y)
+stck_clf.fit(X, y)
 
 # final prediction
-preds = ensembler.predict_proba(X_test)
+preds = stck_clf.predict_proba(X_test)
 
 # kaggle submission file
 submission = pd.DataFrame({'id': test.id, 'target': preds[:,1]})
-submission.to_csv('submission.csv', index=False)
+submission.to_csv('submission_meta.csv', index=False)
