@@ -83,10 +83,8 @@ param_space = {'Random Forest': {'n_estimators': hp.randint('n_estimators', 700,
                         'tol': hp.loguniform('tol', -5, 2)}}
 
 # data import
-# train = pd.read_csv("../input/playground-series-s3e12/train.csv")
-# test = pd.read_csv("../input/playground-series-s3e12/test.csv")
-train = pd.read_csv("train.csv")
-test = pd.read_csv("test.csv")
+train = pd.read_csv("input/playground-series-s3e12/train.csv")
+test = pd.read_csv("input/playground-series-s3e12/test.csv")
 
 # setting features and label
 X, y = train.iloc[:,1:-1], train.iloc[:,-1]
@@ -141,6 +139,9 @@ def hyperopt_tuning(X, y, models, param_space, cv, max_evals=30):
 # running the hyperparameter tuning function
 best_params = hyperopt_tuning(X=X, y=y, models=models, param_space=param_space, cv=skf, max_evals=max_evals)
 
+
+# using voting classifier
+
 # creating an ensemble of the models using soft voting
 estimators = [('Random Forest', RandomForestClassifier(**best_params['Random Forest'],random_state=rs)),
               ('XGB Classifier', XGBClassifier(**best_params['XGB Classifier'],booster='gbtree',tree_method='gpu_hist',predictor='gpu_predictor',sampling_method='gradient_based',grow_policy='lossguide',random_state=rs)),
@@ -176,6 +177,10 @@ for fold, (train_idx, valid_idx) in enumerate(skf.split(X, y)):
     print()
 
 print('Final ensemble score with CV:'+str(np.mean(ens_scores)))
+
+# using stacked meta classifier
+##############################
+
 
 # training final model if happy with score
 ensembler.fit(X, y)
